@@ -27,8 +27,8 @@ A comprehensive, automated security compliance tool designed to audit your AWS e
 
 1. Clone the repository:
    ```bash
-   git clone <your-repo-url>
-   cd "AWS cis"
+   git clone https://github.com/3tternp/aws-cis-tool.git
+   cd aws-cis-tool
    ```
 
 2. Install the required Python dependencies:
@@ -111,7 +111,7 @@ The tool currently implements over **25+ checks** covering critical Level 1 & Le
 ## 📂 Project Structure
 
 ```
-AWS cis/
+aws-cis-tool/
 ├── aws_cis_tool/           # Core package
 │   ├── checks/             # Logic for IAM, Storage, Logging, Monitoring, Networking
 │   ├── auth.py             # Authentication & SSO handling
