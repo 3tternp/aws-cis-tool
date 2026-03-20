@@ -108,6 +108,15 @@ The tool currently implements over **25+ checks** covering critical Level 1 & Le
 - [4.3] Default Security Group restricts all traffic
 - [5.1] NACLs restrict ingress to remote admin ports
 
+### **5. Security**
+- [6.1] GuardDuty enabled (region)
+- [6.2] Security Hub enabled (region)
+- [6.3] GuardDuty enabled (all enabled regions)
+- [6.4] Security Hub enabled (all enabled regions)
+- [6.5] Security Hub CIS standard enabled (region)
+- [6.6] EBS encryption by default enabled (region)
+- [6.7] S3 account-level Block Public Access enabled
+
 ## 📂 Project Structure
 
 ```

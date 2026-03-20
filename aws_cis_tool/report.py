@@ -198,7 +198,8 @@ class ReportGenerator:
             elements.append(Paragraph(f"Result: <font color='{res_color}'><b>{result['result']}</b></font>", normal_style))
             
             if result['details']:
-                elements.append(Paragraph(f"Details: {', '.join(result['details'])}", normal_style))
+                details_text = "<br/>".join(result['details'])
+                elements.append(Paragraph(f"Details:<br/>{details_text}", normal_style))
             
             if result.get('evidence'):
                 evidence_str = json.dumps(result['evidence'], indent=2)

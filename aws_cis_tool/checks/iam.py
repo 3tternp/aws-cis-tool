@@ -339,7 +339,19 @@ class Check_Manual_1_15(CISCheck):
             title="Ensure IAM instance roles are used", 
             category="IAM", 
             description="IAM roles for EC2 instances allow you to delegate permissions to make API requests from the instance without distributing credentials.",
-            check_type="MANUAL"
+            check_type="MANUAL",
+            manual_steps=[
+                "List all running EC2 instances and verify each has an IAM instance profile/role attached.",
+                "For instances with no role, confirm the workload does not use AWS APIs, or attach a least-privilege role.",
+                "On instances that call AWS APIs, confirm applications use the Instance Metadata Service (IMDS) credentials and not static access keys.",
+                "Search for long-lived access keys in user data, environment variables, or files on the instance."
+            ],
+            manual_poc=[
+                "CLI: aws ec2 describe-instances --query \"Reservations[].Instances[].[InstanceId,IamInstanceProfile.Arn]\" --output table",
+                "Expected: every InstanceId has a non-empty IamInstanceProfile.Arn (except explicitly non-AWS workloads).",
+                "CLI: aws ec2 describe-instances --query \"Reservations[].Instances[?IamInstanceProfile==null].[InstanceId,State.Name]\" --output table",
+                "Expected: empty result or only documented exceptions."
+            ]
         )
     def execute(self):
         super().execute()
@@ -352,7 +364,19 @@ class Check_Manual_1_17(CISCheck):
             title="Ensure a support role has been created to manage the incident with AWS Support", 
             category="IAM", 
             description="AWS provides a support center that can be used for incident notification and response.",
-            check_type="MANUAL"
+            check_type="MANUAL",
+            manual_steps=[
+                "Confirm an IAM role exists for Support access and is assigned to the appropriate admin group/team.",
+                "Verify the role has AWS managed policy AWSSupportAccess (or an equivalent least-privilege policy).",
+                "Verify the trust policy only allows approved principals (IdP, SSO permission set, or specific admin roles) to assume it.",
+                "Validate users can access AWS Support Center using the role without using the root account."
+            ],
+            manual_poc=[
+                "Console: IAM → Roles → search for a Support role; confirm attached policies include AWSSupportAccess.",
+                "CLI: aws iam list-roles --query \"Roles[?contains(RoleName, 'Support')].RoleName\" --output table",
+                "CLI: aws iam list-attached-role-policies --role-name <SupportRoleName> --output table",
+                "CLI: aws iam get-role --role-name <SupportRoleName> --query \"Role.AssumeRolePolicyDocument\" --output json"
+            ]
         )
     def execute(self):
         super().execute()

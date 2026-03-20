@@ -1,11 +1,13 @@
 class CISCheck:
-    def __init__(self, auth_session, check_id, title, category, description, check_type="AUTOMATED"):
+    def __init__(self, auth_session, check_id, title, category, description, check_type="AUTOMATED", manual_steps=None, manual_poc=None):
         self.auth = auth_session
         self.check_id = check_id
         self.title = title
         self.category = category
         self.description = description
         self.check_type = check_type  # "AUTOMATED" or "MANUAL"
+        self.manual_steps = manual_steps or []
+        self.manual_poc = manual_poc or []
         
         # Result states: PASS, FAIL, ERROR, WARNING, NOT_APPLICABLE, MANUAL_VERIFICATION_REQUIRED
         self.result = "UNKNOWN"
@@ -19,7 +21,15 @@ class CISCheck:
         """
         if self.check_type == "MANUAL":
             self.result = "MANUAL_VERIFICATION_REQUIRED"
-            self.details.append("This check requires manual verification. Please review the description.")
+            self.details.append("This check requires manual verification.")
+            if self.manual_steps:
+                self.details.append("Steps:")
+                for step in self.manual_steps:
+                    self.details.append(f"- {step}")
+            if self.manual_poc:
+                self.details.append("PoC:")
+                for line in self.manual_poc:
+                    self.details.append(f"- {line}")
             return
         
         raise NotImplementedError("Each check must implement the execute method.")
@@ -54,5 +64,7 @@ class CISCheck:
             "check_type": self.check_type,
             "result": self.result,
             "details": self.details,
-            "evidence": self.evidence
+            "evidence": self.evidence,
+            "manual_steps": self.manual_steps,
+            "manual_poc": self.manual_poc
         }
