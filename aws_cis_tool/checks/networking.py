@@ -1,11 +1,11 @@
 from .base import CISCheck
 import botocore.exceptions
 
-class Check_4_1(CISCheck):
+class Check_5_1(CISCheck):
     def __init__(self, auth_session):
         super().__init__(
             auth_session, 
-            check_id="4.1", 
+            check_id="5.1", 
             title="Ensure no security groups allow ingress from 0.0.0.0/0 to port 22", 
             category="Networking", 
             description="Security groups provide stateful filtering of ingress/egress network traffic to AWS resources. Port 22 (SSH) should not be open to the internet."
@@ -43,11 +43,11 @@ class Check_4_1(CISCheck):
         except Exception as e:
             self.error_check(f"Unexpected error: {e}")
 
-class Check_4_2(CISCheck):
+class Check_5_2(CISCheck):
     def __init__(self, auth_session):
         super().__init__(
             auth_session, 
-            check_id="4.2", 
+            check_id="5.2", 
             title="Ensure no security groups allow ingress from 0.0.0.0/0 to port 3389", 
             category="Networking", 
             description="Port 3389 (RDP) should not be open to the internet."
@@ -84,11 +84,11 @@ class Check_4_2(CISCheck):
         except Exception as e:
             self.error_check(f"Unexpected error: {e}")
 
-class Check_4_3(CISCheck):
+class Check_5_3(CISCheck):
     def __init__(self, auth_session):
         super().__init__(
             auth_session, 
-            check_id="4.3", 
+            check_id="5.3", 
             title="Ensure the default security group of every VPC restricts all traffic", 
             category="Networking", 
             description="The default security group cannot be deleted. It should be configured to restrict all traffic."
@@ -132,11 +132,11 @@ class Check_4_3(CISCheck):
         except Exception as e:
             self.error_check(f"Unexpected error: {e}")
 
-class Check_5_1(CISCheck):
+class Check_5_4(CISCheck):
     def __init__(self, auth_session):
         super().__init__(
             auth_session, 
-            check_id="5.1", 
+            check_id="5.4", 
             title="Ensure no Network ACLs allow ingress from 0.0.0.0/0 to remote server administration ports", 
             category="Networking", 
             description="The Network Access Control List (NACL) function provides a stateless filtering method. NACLs should not allow unrestricted ingress access to ports 22 or 3389."
@@ -183,8 +183,8 @@ class Check_5_1(CISCheck):
 
 def get_networking_checks(auth_session):
     return [
-        Check_4_1(auth_session),
-        Check_4_2(auth_session),
-        Check_4_3(auth_session),
-        Check_5_1(auth_session)
+        Check_5_1(auth_session),
+        Check_5_2(auth_session),
+        Check_5_3(auth_session),
+        Check_5_4(auth_session)
     ]

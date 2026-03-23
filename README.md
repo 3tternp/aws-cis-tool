@@ -119,13 +119,13 @@ The tool currently implements over **25+ checks** covering critical Level 1 & Le
 - [3.7] CloudTrail KMS Encryption
 - [3.9] VPC Flow Logs Enabled
 
-### **4. Networking**
-- [4.1] SSH (Port 22) restricted from 0.0.0.0/0
-- [4.2] RDP (Port 3389) restricted from 0.0.0.0/0
-- [4.3] Default Security Group restricts all traffic
-- [5.1] NACLs restrict ingress to remote admin ports
+### **5. Networking**
+- [5.1] SSH (Port 22) restricted from 0.0.0.0/0
+- [5.2] RDP (Port 3389) restricted from 0.0.0.0/0
+- [5.3] Default Security Group restricts all traffic
+- [5.4] NACLs restrict ingress to remote admin ports
 
-### **5. Security**
+### **6. Security**
 - [6.1] GuardDuty enabled (region)
 - [6.2] Security Hub enabled (region)
 - [6.3] GuardDuty enabled (all enabled regions)
