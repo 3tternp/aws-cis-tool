@@ -323,6 +323,176 @@ class Check_6_7(CISCheck):
             self.error_check(f"Unexpected error: {e}")
 
 
+class Check_6_8(CISCheck):
+    def __init__(self, auth_session):
+        super().__init__(
+            auth_session,
+            check_id="6.8",
+            title="Ensure EC2 instances require IMDSv2",
+            category="Security",
+            description="Requiring IMDSv2 (HttpTokens=required) reduces risk of SSRF-based credential theft from the Instance Metadata Service."
+        )
+
+    def execute(self):
+        try:
+            ec2 = self.auth.get_client('ec2')
+            paginator = ec2.get_paginator('describe_instances')
+
+            non_compliant = []
+            checked = 0
+
+            for page in paginator.paginate():
+                for reservation in page.get('Reservations', []):
+                    for instance in reservation.get('Instances', []):
+                        checked += 1
+                        instance_id = instance.get('InstanceId')
+                        state = (instance.get('State') or {}).get('Name')
+                        metadata = instance.get('MetadataOptions') or {}
+                        http_tokens = metadata.get('HttpTokens')
+                        if http_tokens != 'required':
+                            non_compliant.append(
+                                {
+                                    "InstanceId": instance_id,
+                                    "State": state,
+                                    "HttpTokens": http_tokens,
+                                    "HttpEndpoint": metadata.get('HttpEndpoint'),
+                                    "HttpPutResponseHopLimit": metadata.get('HttpPutResponseHopLimit'),
+                                }
+                            )
+
+            evidence = {"CheckedInstances": checked}
+
+            if non_compliant:
+                evidence["NonCompliantInstances"] = non_compliant[:200]
+                if len(non_compliant) > 200:
+                    evidence["NonCompliantTruncated"] = len(non_compliant) - 200
+                self.fail_check(f"Instances not requiring IMDSv2: {len(non_compliant)}", evidence=evidence)
+            else:
+                self.pass_check("All EC2 instances require IMDSv2 (HttpTokens=required).", evidence=evidence)
+
+        except botocore.exceptions.ClientError as e:
+            self.error_check(f"Failed to check EC2 IMDS settings: {e}")
+        except Exception as e:
+            self.error_check(f"Unexpected error: {e}")
+
+
+class Check_6_9(CISCheck):
+    def __init__(self, auth_session):
+        super().__init__(
+            auth_session,
+            check_id="6.9",
+            title="Ensure all EBS volumes are encrypted",
+            category="Security",
+            description="EBS encryption helps protect data at rest on block storage volumes."
+        )
+
+    def execute(self):
+        try:
+            ec2 = self.auth.get_client('ec2')
+            paginator = ec2.get_paginator('describe_volumes')
+
+            unencrypted = []
+            checked = 0
+
+            for page in paginator.paginate():
+                for vol in page.get('Volumes', []):
+                    checked += 1
+                    if vol.get('Encrypted') is True:
+                        continue
+                    attachments = []
+                    for a in vol.get('Attachments', []) or []:
+                        attachments.append(
+                            {
+                                "InstanceId": a.get('InstanceId'),
+                                "State": a.get('State'),
+                                "Device": a.get('Device'),
+                            }
+                        )
+                    unencrypted.append(
+                        {
+                            "VolumeId": vol.get('VolumeId'),
+                            "State": vol.get('State'),
+                            "Size": vol.get('Size'),
+                            "VolumeType": vol.get('VolumeType'),
+                            "Attachments": attachments,
+                        }
+                    )
+
+            evidence = {"CheckedVolumes": checked}
+
+            if unencrypted:
+                evidence["UnencryptedVolumes"] = unencrypted[:200]
+                if len(unencrypted) > 200:
+                    evidence["UnencryptedTruncated"] = len(unencrypted) - 200
+                self.fail_check(f"Unencrypted EBS volumes found: {len(unencrypted)}", evidence=evidence)
+            else:
+                self.pass_check("All EBS volumes are encrypted.", evidence=evidence)
+
+        except botocore.exceptions.ClientError as e:
+            self.error_check(f"Failed to check EBS volume encryption: {e}")
+        except Exception as e:
+            self.error_check(f"Unexpected error: {e}")
+
+
+class Check_6_10(CISCheck):
+    def __init__(self, auth_session):
+        super().__init__(
+            auth_session,
+            check_id="6.10",
+            title="Ensure S3 bucket default encryption is enabled",
+            category="Security",
+            description="S3 default encryption helps ensure objects are encrypted at rest when uploaded to a bucket."
+        )
+
+    def execute(self):
+        try:
+            s3 = self.auth.get_client('s3')
+            buckets = s3.list_buckets().get('Buckets', [])
+
+            missing = []
+            denied = []
+            other_errors = []
+
+            for b in buckets:
+                name = b.get('Name')
+                if not name:
+                    continue
+                try:
+                    enc = s3.get_bucket_encryption(Bucket=name)
+                    rules = ((enc.get('ServerSideEncryptionConfiguration') or {}).get('Rules') or [])
+                    if not rules:
+                        missing.append(name)
+                except botocore.exceptions.ClientError as e:
+                    code = e.response.get('Error', {}).get('Code', '')
+                    if code == 'ServerSideEncryptionConfigurationNotFoundError':
+                        missing.append(name)
+                    elif code == 'AccessDenied':
+                        denied.append(name)
+                    else:
+                        other_errors.append({"Bucket": name, "Code": code, "Message": str(e)})
+
+            evidence = {
+                "TotalBuckets": len(buckets),
+                "BucketsWithoutDefaultEncryption": missing,
+                "BucketsAccessDenied": denied,
+                "OtherErrors": other_errors[:50],
+            }
+            if len(other_errors) > 50:
+                evidence["OtherErrorsTruncated"] = len(other_errors) - 50
+
+            if denied or other_errors:
+                self.error_check("Unable to evaluate S3 bucket default encryption for one or more buckets.", evidence=evidence)
+            elif missing:
+                self.fail_check(f"Buckets without default encryption: {', '.join(missing)}", evidence=evidence)
+            else:
+                self.pass_check("All S3 buckets have default encryption enabled.", evidence=evidence)
+
+        except botocore.exceptions.ClientError as e:
+            self.error_check(f"Failed to check S3 bucket encryption: {e}")
+        except Exception as e:
+            self.error_check(f"Unexpected error: {e}")
+
+
 def get_security_checks(auth_session):
     return [
         Check_6_1(auth_session),
@@ -332,4 +502,7 @@ def get_security_checks(auth_session):
         Check_6_5(auth_session),
         Check_6_6(auth_session),
         Check_6_7(auth_session),
+        Check_6_8(auth_session),
+        Check_6_9(auth_session),
+        Check_6_10(auth_session),
     ]

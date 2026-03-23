@@ -50,6 +50,7 @@ python gui.py
 - **Live Logs**: Watch the scan progress in real-time within the app.
 - **Report Selection**: Toggle JSON, HTML, or PDF outputs.
 - **Profile Switching**: Easily switch between different AWS profiles or regions.
+- **Changelog Viewer**: View recent changes directly in the GUI.
 
 ### 2. Command Line Interface (CLI)
 
@@ -63,10 +64,26 @@ python main.py
 - `--region`, `-r`: AWS region (e.g., `us-east-1`).
 - `--output`, `-o`: Output format. Choices: `json`, `html`, `pdf`, `all` (default: `all`).
 - `--output-dir`, `-d`: Directory to save reports (default: `reports`).
+- `--changelog`: Print `CHANGELOG.md` and exit.
 
 **Example:**
 ```bash
 python main.py --profile production --region us-east-1 --output pdf
+```
+
+### 3. Docker
+
+Build the image:
+```bash
+docker build -t aws-cis-tool .
+```
+
+Run a scan (mount your local AWS config/credentials as read-only):
+```bash
+docker run --rm -it \
+  -v "$HOME/.aws:/home/appuser/.aws:ro" \
+  -e AWS_PROFILE=default \
+  aws-cis-tool -r us-east-1 -o all -d reports
 ```
 
 ## 🛡️ Supported CIS Benchmark Controls
@@ -116,6 +133,9 @@ The tool currently implements over **25+ checks** covering critical Level 1 & Le
 - [6.5] Security Hub CIS standard enabled (region)
 - [6.6] EBS encryption by default enabled (region)
 - [6.7] S3 account-level Block Public Access enabled
+- [6.8] EC2 instances require IMDSv2
+- [6.9] All EBS volumes encrypted
+- [6.10] S3 bucket default encryption enabled
 
 ## 📂 Project Structure
 
@@ -126,6 +146,8 @@ aws-cis-tool/
 │   ├── auth.py             # Authentication & SSO handling
 │   └── report.py           # Report generation engine (PDF/HTML/JSON)
 ├── reports/                # Output directory
+├── CHANGELOG.md            # Change history
+├── Dockerfile              # Container image definition
 ├── gui.py                  # Tkinter GUI entry point
 ├── main.py                 # CLI entry point
 ├── requirements.txt        # Dependencies

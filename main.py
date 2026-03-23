@@ -1,5 +1,6 @@
 import argparse
 import sys
+from pathlib import Path
 from colorama import init, Fore, Style
 from tabulate import tabulate
 from aws_cis_tool.auth import AWSAuth
@@ -17,6 +18,13 @@ def print_banner():
     {Style.RESET_ALL}"""
     print(banner)
 
+def print_changelog():
+    changelog_path = Path(__file__).resolve().parent / "CHANGELOG.md"
+    if not changelog_path.exists():
+        print("CHANGELOG.md not found.")
+        return
+    print(changelog_path.read_text(encoding="utf-8", errors="replace"))
+
 def main():
     init(autoreset=True)
     parser = argparse.ArgumentParser(description="AWS CIS Benchmark Tool")
@@ -24,8 +32,13 @@ def main():
     parser.add_argument("-r", "--region", help="AWS region to use", default=None)
     parser.add_argument("-o", "--output", help="Output format: json, html, pdf, or all", choices=['json', 'html', 'pdf', 'all'], default='all')
     parser.add_argument("-d", "--output-dir", help="Directory to save reports", default="reports")
+    parser.add_argument("--changelog", help="Print changelog and exit", action="store_true")
     
     args = parser.parse_args()
+
+    if args.changelog:
+        print_changelog()
+        return
     
     print_banner()
     

@@ -4,6 +4,7 @@ import threading
 import sys
 import re
 import os
+from pathlib import Path
 from tabulate import tabulate
 
 from aws_cis_tool.auth import AWSAuth
@@ -48,10 +49,27 @@ class AWSCISApp(tk.Tk):
         main_frame = ttk.Frame(self)
         main_frame.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
         main_frame.grid_columnconfigure(0, weight=1)
+
+        banner_text = (
+            "    _    _      _____     _____ _____  _____            _           \n"
+            "   / \\  | |    / ___/    / ___//  _  \\|  _  \\          | |          \n"
+            "  / _ \\ | |    \\___ \\    \\___ \\| | | || | | |  ______  | |          \n"
+            " / ___ \\| |___  ___) |    ___) | |_| || |_| | |______| | |___       \n"
+            "/_/   \\_\\_____|/____/    /____/ \\_____/|_____/          |_____|      \n"
+            "                 AWS CIS Benchmark Scanner                            "
+        )
+        header_frame = ttk.Frame(main_frame)
+        header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        header_frame.grid_columnconfigure(0, weight=1)
+
+        banner = tk.Label(header_frame, text=banner_text, font=("Consolas", 9), justify="center")
+        banner.grid(row=0, column=0, sticky="ew")
+
+        ttk.Button(header_frame, text="View Changelog", command=self.show_changelog).grid(row=1, column=0, sticky="e", pady=(6, 0))
         
         # --- Authentication Settings ---
         auth_frame = ttk.LabelFrame(main_frame, text="Authentication Settings")
-        auth_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10), ipady=5)
+        auth_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10), ipady=5)
         auth_frame.grid_columnconfigure(1, weight=1)
         
         self.auth_mode_var = tk.StringVar(value="profile")
@@ -83,7 +101,7 @@ class AWSCISApp(tk.Tk):
         
         # --- Report Settings ---
         report_frame = ttk.LabelFrame(main_frame, text="Report Settings")
-        report_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10), ipady=5)
+        report_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10), ipady=5)
         report_frame.grid_columnconfigure(1, weight=1)
         
         self.json_var = tk.BooleanVar(value=True)
@@ -106,12 +124,12 @@ class AWSCISApp(tk.Tk):
         
         # --- Action Button ---
         self.run_btn = ttk.Button(main_frame, text="Run Benchmark Scan", command=self.start_scan)
-        self.run_btn.grid(row=2, column=0, sticky="ew", pady=(0, 10), ipady=5)
+        self.run_btn.grid(row=3, column=0, sticky="ew", pady=(0, 10), ipady=5)
         
         # --- Console Output ---
         console_frame = ttk.LabelFrame(main_frame, text="Execution Logs")
-        console_frame.grid(row=3, column=0, sticky="nsew")
-        main_frame.grid_rowconfigure(3, weight=1)
+        console_frame.grid(row=4, column=0, sticky="nsew")
+        main_frame.grid_rowconfigure(4, weight=1)
         
         self.console = scrolledtext.ScrolledText(console_frame, state="disabled", bg="black", fg="lightgray", font=("Consolas", 10))
         self.console.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -124,6 +142,23 @@ class AWSCISApp(tk.Tk):
         if directory:
             self.out_dir_entry.delete(0, tk.END)
             self.out_dir_entry.insert(0, directory)
+
+    def show_changelog(self):
+        changelog_path = Path(__file__).resolve().parent / "CHANGELOG.md"
+        if not changelog_path.exists():
+            messagebox.showerror("Changelog", "CHANGELOG.md not found.")
+            return
+
+        content = changelog_path.read_text(encoding="utf-8", errors="replace")
+
+        win = tk.Toplevel(self)
+        win.title("Changelog")
+        win.geometry("800x600")
+
+        txt = scrolledtext.ScrolledText(win, state="normal", font=("Consolas", 10))
+        txt.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        txt.insert(tk.END, content)
+        txt.configure(state="disabled")
 
     def toggle_auth_fields(self):
         mode = self.auth_mode_var.get()
