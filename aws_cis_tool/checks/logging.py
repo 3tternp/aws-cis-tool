@@ -18,17 +18,26 @@ class Check_3_1(CISCheck):
             trails = response.get('trailList', [])
             
             multi_region_trail_exists = False
+            trails_evaluated = []
             for trail in trails:
-                if trail.get('IsMultiRegionTrail') and trail.get('LogFileValidationEnabled'):
+                trail_info = {
+                    "Name": trail.get('Name'),
+                    "TrailARN": trail.get('TrailARN'),
+                    "IsMultiRegionTrail": trail.get('IsMultiRegionTrail'),
+                    "LogFileValidationEnabled": trail.get('LogFileValidationEnabled'),
+                }
+                if trail.get('IsMultiRegionTrail') and trail.get('LogFileValidationEnabled') and trail.get('TrailARN'):
                     status = cloudtrail.get_trail_status(Name=trail['TrailARN'])
+                    trail_info["IsLogging"] = status.get('IsLogging')
                     if status.get('IsLogging'):
                         multi_region_trail_exists = True
-                        break
+                trails_evaluated.append(trail_info)
                         
+            evidence = {"Trails": trails_evaluated}
             if multi_region_trail_exists:
-                self.pass_check("A multi-region CloudTrail trail is configured and logging.")
+                self.pass_check("A multi-region CloudTrail trail is configured and logging.", evidence=evidence)
             else:
-                self.fail_check("No active multi-region CloudTrail trail found with log file validation enabled.")
+                self.fail_check("No active multi-region CloudTrail trail found with log file validation enabled.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check CloudTrail status: {e}")
@@ -52,14 +61,23 @@ class Check_3_2(CISCheck):
             trails = response.get('trailList', [])
             
             invalid_trails = []
+            trails_evaluated = []
             for trail in trails:
+                trails_evaluated.append(
+                    {
+                        "Name": trail.get('Name'),
+                        "TrailARN": trail.get('TrailARN'),
+                        "LogFileValidationEnabled": trail.get('LogFileValidationEnabled'),
+                    }
+                )
                 if not trail.get('LogFileValidationEnabled'):
                     invalid_trails.append(trail['Name'])
                     
+            evidence = {"Trails": trails_evaluated, "InvalidTrails": invalid_trails}
             if invalid_trails:
-                self.fail_check(f"CloudTrail trails without log file validation enabled: {', '.join(invalid_trails)}")
+                self.fail_check(f"CloudTrail trails without log file validation enabled: {', '.join(invalid_trails)}", evidence=evidence)
             else:
-                self.pass_check("All CloudTrail trails have log file validation enabled.")
+                self.pass_check("All CloudTrail trails have log file validation enabled.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check CloudTrail log file validation: {e}")
@@ -83,14 +101,23 @@ class Check_3_4(CISCheck):
             trails = response.get('trailList', [])
             
             unintegrated_trails = []
+            trails_evaluated = []
             for trail in trails:
+                trails_evaluated.append(
+                    {
+                        "Name": trail.get('Name'),
+                        "TrailARN": trail.get('TrailARN'),
+                        "CloudWatchLogsLogGroupArn": trail.get('CloudWatchLogsLogGroupArn'),
+                    }
+                )
                 if not trail.get('CloudWatchLogsLogGroupArn'):
                     unintegrated_trails.append(trail['Name'])
                     
+            evidence = {"Trails": trails_evaluated, "UnintegratedTrails": unintegrated_trails}
             if unintegrated_trails:
-                self.fail_check(f"CloudTrail trails not integrated with CloudWatch Logs: {', '.join(unintegrated_trails)}")
+                self.fail_check(f"CloudTrail trails not integrated with CloudWatch Logs: {', '.join(unintegrated_trails)}", evidence=evidence)
             else:
-                self.pass_check("All CloudTrail trails are integrated with CloudWatch Logs.")
+                self.pass_check("All CloudTrail trails are integrated with CloudWatch Logs.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check CloudTrail integration with CloudWatch: {e}")
@@ -116,7 +143,7 @@ class Check_3_5(CISCheck):
             # Check recorder status
             recorders = config.describe_configuration_recorders()['ConfigurationRecorders']
             if not recorders:
-                self.fail_check("No AWS Config recorder found in this region.")
+                self.fail_check("No AWS Config recorder found in this region.", evidence={"ConfigurationRecorders": []})
                 return
 
             recorder_status = config.describe_configuration_recorder_status()
@@ -126,14 +153,15 @@ class Check_3_5(CISCheck):
                     is_recording = True
                     break
             
+            evidence = {"ConfigurationRecorders": recorders, "RecorderStatus": recorder_status.get('ConfigurationRecordersStatus', [])}
             if is_recording:
                 # Check for global resource recording (IAM)
                 if recorders[0]['recordingGroup'].get('includeGlobalResourceTypes'):
-                    self.pass_check("AWS Config is enabled and recording global resources.")
+                    self.pass_check("AWS Config is enabled and recording global resources.", evidence=evidence)
                 else:
-                    self.pass_check("AWS Config is enabled (Note: Ensure global resources are recorded in at least one region).")
+                    self.pass_check("AWS Config is enabled (Note: Ensure global resources are recorded in at least one region).", evidence=evidence)
             else:
-                self.fail_check("AWS Config recorder exists but is NOT recording.")
+                self.fail_check("AWS Config recorder exists but is NOT recording.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check AWS Config: {e}")
@@ -157,14 +185,23 @@ class Check_3_7(CISCheck):
             trails = response.get('trailList', [])
             
             unencrypted_trails = []
+            trails_evaluated = []
             for trail in trails:
+                trails_evaluated.append(
+                    {
+                        "Name": trail.get('Name'),
+                        "TrailARN": trail.get('TrailARN'),
+                        "KmsKeyId": trail.get('KmsKeyId'),
+                    }
+                )
                 if not trail.get('KmsKeyId'):
                     unencrypted_trails.append(trail['Name'])
                     
+            evidence = {"Trails": trails_evaluated, "UnencryptedTrails": unencrypted_trails}
             if unencrypted_trails:
-                self.fail_check(f"CloudTrail trails not using KMS encryption: {', '.join(unencrypted_trails)}")
+                self.fail_check(f"CloudTrail trails not using KMS encryption: {', '.join(unencrypted_trails)}", evidence=evidence)
             else:
-                self.pass_check("All CloudTrail trails are encrypted with KMS CMKs.")
+                self.pass_check("All CloudTrail trails are encrypted with KMS CMKs.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check CloudTrail encryption: {e}")
@@ -187,6 +224,7 @@ class Check_3_9(CISCheck):
             vpcs = ec2.describe_vpcs().get('Vpcs', [])
             
             violating_vpcs = []
+            vpc_evidence = []
             
             for vpc in vpcs:
                 vpc_id = vpc['VpcId']
@@ -200,14 +238,22 @@ class Check_3_9(CISCheck):
                     if fl['FlowLogStatus'] == 'ACTIVE':
                         active_flow_log = True
                         break
+                vpc_evidence.append(
+                    {
+                        "VpcId": vpc_id,
+                        "ActiveFlowLog": active_flow_log,
+                        "FlowLogs": [{"FlowLogId": fl.get('FlowLogId'), "FlowLogStatus": fl.get('FlowLogStatus')} for fl in flow_logs],
+                    }
+                )
                 
                 if not active_flow_log:
                     violating_vpcs.append(vpc_id)
             
+            evidence = {"Vpcs": vpc_evidence, "ViolatingVpcs": violating_vpcs}
             if violating_vpcs:
-                self.fail_check(f"VPCs without active Flow Logs: {', '.join(violating_vpcs)}")
+                self.fail_check(f"VPCs without active Flow Logs: {', '.join(violating_vpcs)}", evidence=evidence)
             else:
-                self.pass_check("All VPCs have active Flow Logs enabled.")
+                self.pass_check("All VPCs have active Flow Logs enabled.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check VPC Flow Logs: {e}")

@@ -17,8 +17,10 @@ class Check_4_1(CISCheck):
             paginator = ec2.get_paginator('describe_security_groups')
             
             violating_sgs = []
+            checked_sgs = 0
             for page in paginator.paginate():
                 for sg in page['SecurityGroups']:
+                    checked_sgs += 1
                     for perm in sg['IpPermissions']:
                         if perm.get('IpProtocol') in ['tcp', '-1']:
                             from_port = perm.get('FromPort', 0)
@@ -30,10 +32,11 @@ class Check_4_1(CISCheck):
                                     if ip_range.get('CidrIp') == '0.0.0.0/0':
                                         violating_sgs.append(f"{sg['GroupId']} ({sg['GroupName']})")
                                         
+            evidence = {"CheckedSecurityGroups": checked_sgs, "ViolatingSecurityGroups": violating_sgs}
             if violating_sgs:
-                self.fail_check(f"Security groups allowing SSH from 0.0.0.0/0: {', '.join(violating_sgs)}")
+                self.fail_check(f"Security groups allowing SSH from 0.0.0.0/0: {', '.join(violating_sgs)}", evidence=evidence)
             else:
-                self.pass_check("No security groups allow SSH from 0.0.0.0/0.")
+                self.pass_check("No security groups allow SSH from 0.0.0.0/0.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check security groups: {e}")
@@ -56,8 +59,10 @@ class Check_4_2(CISCheck):
             paginator = ec2.get_paginator('describe_security_groups')
             
             violating_sgs = []
+            checked_sgs = 0
             for page in paginator.paginate():
                 for sg in page['SecurityGroups']:
+                    checked_sgs += 1
                     for perm in sg['IpPermissions']:
                         if perm.get('IpProtocol') in ['tcp', 'udp', '-1']:
                             from_port = perm.get('FromPort', 0)
@@ -68,10 +73,11 @@ class Check_4_2(CISCheck):
                                     if ip_range.get('CidrIp') == '0.0.0.0/0':
                                         violating_sgs.append(f"{sg['GroupId']} ({sg['GroupName']})")
                                         
+            evidence = {"CheckedSecurityGroups": checked_sgs, "ViolatingSecurityGroups": violating_sgs}
             if violating_sgs:
-                self.fail_check(f"Security groups allowing RDP from 0.0.0.0/0: {', '.join(violating_sgs)}")
+                self.fail_check(f"Security groups allowing RDP from 0.0.0.0/0: {', '.join(violating_sgs)}", evidence=evidence)
             else:
-                self.pass_check("No security groups allow RDP from 0.0.0.0/0.")
+                self.pass_check("No security groups allow RDP from 0.0.0.0/0.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check security groups: {e}")
@@ -94,8 +100,10 @@ class Check_4_3(CISCheck):
             vpcs = ec2.describe_vpcs().get('Vpcs', [])
             
             violating_sgs = []
+            checked_vpcs = 0
             
             for vpc in vpcs:
+                checked_vpcs += 1
                 vpc_id = vpc['VpcId']
                 # Find default SG for this VPC
                 sgs = ec2.describe_security_groups(
@@ -113,10 +121,11 @@ class Check_4_3(CISCheck):
                     if sg.get('IpPermissions') or sg.get('IpPermissionsEgress'):
                          violating_sgs.append(f"{sg['GroupId']} (VPC: {vpc_id})")
             
+            evidence = {"CheckedVpcs": checked_vpcs, "ViolatingDefaultSecurityGroups": violating_sgs}
             if violating_sgs:
-                self.fail_check(f"Default security groups with active rules: {', '.join(violating_sgs)}")
+                self.fail_check(f"Default security groups with active rules: {', '.join(violating_sgs)}", evidence=evidence)
             else:
-                self.pass_check("All default security groups restrict all traffic (no rules).")
+                self.pass_check("All default security groups restrict all traffic (no rules).", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check default security groups: {e}")
@@ -139,8 +148,10 @@ class Check_5_1(CISCheck):
             nacls = ec2.describe_network_acls().get('NetworkAcls', [])
             
             violating_nacls = []
+            checked_nacls = 0
             
             for nacl in nacls:
+                checked_nacls += 1
                 for entry in nacl['Entries']:
                     if not entry['Egress'] and entry['RuleAction'] == 'allow' and entry.get('CidrBlock') == '0.0.0.0/0':
                         # Ingress allow from 0.0.0.0/0
@@ -159,10 +170,11 @@ class Check_5_1(CISCheck):
                                 violating_nacls.append(f"{nacl['NetworkAclId']} (Ports exposed)")
                                 break
             
+            evidence = {"CheckedNetworkAcls": checked_nacls, "ViolatingNetworkAcls": violating_nacls}
             if violating_nacls:
-                self.fail_check(f"NACLs allowing ingress to 22/3389 from 0.0.0.0/0: {', '.join(violating_nacls)}")
+                self.fail_check(f"NACLs allowing ingress to 22/3389 from 0.0.0.0/0: {', '.join(violating_nacls)}", evidence=evidence)
             else:
-                self.pass_check("No NACLs allow unrestricted ingress to port 22 or 3389.")
+                self.pass_check("No NACLs allow unrestricted ingress to port 22 or 3389.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check NACLs: {e}")

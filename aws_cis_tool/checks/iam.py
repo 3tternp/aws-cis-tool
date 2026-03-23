@@ -48,10 +48,11 @@ class Check_1_4(CISCheck):
             summary = response.get('SummaryMap', {})
             
             mfa_active = summary.get('AccountMFAEnabled', 0)
+            evidence = {"AccountSummary": summary}
             if int(mfa_active) == 1:
-                self.pass_check("MFA is enabled for the root account.")
+                self.pass_check("MFA is enabled for the root account.", evidence=evidence)
             else:
-                self.fail_check("MFA is NOT enabled for the root account.")
+                self.fail_check("MFA is NOT enabled for the root account.", evidence=evidence)
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check root MFA: {e}")
         except Exception as e:
@@ -73,6 +74,7 @@ class Check_1_5(CISCheck):
             paginator = iam.get_paginator('list_users')
             
             users_without_mfa = []
+            users_with_console_password = []
             
             for page in paginator.paginate():
                 for user in page['Users']:
@@ -84,14 +86,19 @@ class Check_1_5(CISCheck):
                         has_console_password = False
                     
                     if has_console_password:
+                        users_with_console_password.append(user['UserName'])
                         mfa_devices = iam.list_mfa_devices(UserName=user['UserName'])['MFADevices']
                         if not mfa_devices:
                             users_without_mfa.append(user['UserName'])
             
+            evidence = {
+                "UsersWithConsolePassword": users_with_console_password,
+                "UsersWithoutMfa": users_without_mfa,
+            }
             if users_without_mfa:
-                self.fail_check(f"Users with console password but no MFA: {', '.join(users_without_mfa)}")
+                self.fail_check(f"Users with console password but no MFA: {', '.join(users_without_mfa)}", evidence=evidence)
             else:
-                self.pass_check("All users with console password have MFA enabled.")
+                self.pass_check("All users with console password have MFA enabled.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check user MFA status: {e}")
@@ -113,13 +120,14 @@ class Check_1_8(CISCheck):
             iam = self.auth.get_client('iam')
             try:
                 policy = iam.get_account_password_policy()['PasswordPolicy']
+                evidence = {"PasswordPolicy": policy}
                 if policy.get('MinimumPasswordLength', 0) >= 14:
-                    self.pass_check("Password policy requires minimum length of 14 or greater.")
+                    self.pass_check("Password policy requires minimum length of 14 or greater.", evidence=evidence)
                 else:
-                    self.fail_check(f"Password minimum length is {policy.get('MinimumPasswordLength', 0)} (required >= 14).")
+                    self.fail_check(f"Password minimum length is {policy.get('MinimumPasswordLength', 0)} (required >= 14).", evidence=evidence)
             except botocore.exceptions.ClientError as e:
                 if e.response['Error']['Code'] == 'NoSuchEntity':
-                    self.fail_check("No password policy found.")
+                    self.fail_check("No password policy found.", evidence={"PasswordPolicy": None})
                 else:
                     raise e
         except Exception as e:
@@ -140,13 +148,14 @@ class Check_1_9(CISCheck):
             iam = self.auth.get_client('iam')
             try:
                 policy = iam.get_account_password_policy()['PasswordPolicy']
+                evidence = {"PasswordPolicy": policy}
                 if policy.get('PasswordReusePrevention', 0) >= 24:
-                    self.pass_check("Password policy prevents reuse of last 24 passwords.")
+                    self.pass_check("Password policy prevents reuse of last 24 passwords.", evidence=evidence)
                 else:
-                    self.fail_check(f"Password reuse prevention is set to {policy.get('PasswordReusePrevention', 0)} (required >= 24).")
+                    self.fail_check(f"Password reuse prevention is set to {policy.get('PasswordReusePrevention', 0)} (required >= 24).", evidence=evidence)
             except botocore.exceptions.ClientError as e:
                 if e.response['Error']['Code'] == 'NoSuchEntity':
-                    self.fail_check("No password policy found.")
+                    self.fail_check("No password policy found.", evidence={"PasswordPolicy": None})
                 else:
                     raise e
         except Exception as e:
@@ -178,9 +187,11 @@ class Check_1_12(CISCheck):
             
             threshold = datetime.now(timezone.utc) - timedelta(days=90)
             violating_users = []
+            checked_users = 0
             
             for page in paginator.paginate():
                 for user in page['Users']:
+                    checked_users += 1
                     # Check Access Keys
                     keys = iam.list_access_keys(UserName=user['UserName'])['AccessKeyMetadata']
                     for key in keys:
@@ -193,10 +204,15 @@ class Check_1_12(CISCheck):
                             elif not last_used_date and key['CreateDate'] < threshold:
                                 violating_users.append(f"{user['UserName']} (Key {key['AccessKeyId']} never used, created {key['CreateDate']})")
             
+            evidence = {
+                "CheckedUsers": checked_users,
+                "ThresholdDays": 90,
+                "Violations": violating_users,
+            }
             if violating_users:
-                self.fail_check(f"Users with active credentials unused for >90 days: {', '.join(violating_users)}")
+                self.fail_check(f"Users with active credentials unused for >90 days: {', '.join(violating_users)}", evidence=evidence)
             else:
-                self.pass_check("No active credentials found unused for >90 days.")
+                self.pass_check("No active credentials found unused for >90 days.", evidence=evidence)
                 
         except Exception as e:
             self.error_check(f"Unexpected error: {e}")
@@ -217,19 +233,22 @@ class Check_1_16(CISCheck):
             paginator = iam.get_paginator('list_users')
             
             users_with_policies = []
+            checked_users = 0
             
             for page in paginator.paginate():
                 for user in page['Users']:
+                    checked_users += 1
                     attached_policies = iam.list_attached_user_policies(UserName=user['UserName'])['AttachedPolicies']
                     inline_policies = iam.list_user_policies(UserName=user['UserName'])['PolicyNames']
                     
                     if attached_policies or inline_policies:
                         users_with_policies.append(user['UserName'])
             
+            evidence = {"CheckedUsers": checked_users, "UsersWithDirectPolicies": users_with_policies}
             if users_with_policies:
-                self.fail_check(f"Users with directly attached policies: {', '.join(users_with_policies)}")
+                self.fail_check(f"Users with directly attached policies: {', '.join(users_with_policies)}", evidence=evidence)
             else:
-                self.pass_check("No users have directly attached policies.")
+                self.pass_check("No users have directly attached policies.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check user policies: {e}")
@@ -254,9 +273,11 @@ class Check_1_13(CISCheck):
             
             threshold = datetime.now(timezone.utc) - timedelta(days=90)
             violating_users = []
+            checked_users = 0
             
             for page in paginator.paginate():
                 for user in page['Users']:
+                    checked_users += 1
                     # Check Access Keys
                     keys = iam.list_access_keys(UserName=user['UserName'])['AccessKeyMetadata']
                     for key in keys:
@@ -264,10 +285,15 @@ class Check_1_13(CISCheck):
                             if key['CreateDate'] < threshold:
                                 violating_users.append(f"{user['UserName']} (Key {key['AccessKeyId']} age > 90 days)")
             
+            evidence = {
+                "CheckedUsers": checked_users,
+                "ThresholdDays": 90,
+                "Violations": violating_users,
+            }
             if violating_users:
-                self.fail_check(f"Users with active access keys older than 90 days: {', '.join(violating_users)}")
+                self.fail_check(f"Users with active access keys older than 90 days: {', '.join(violating_users)}", evidence=evidence)
             else:
-                self.pass_check("All active access keys are younger than 90 days.")
+                self.pass_check("All active access keys are younger than 90 days.", evidence=evidence)
                 
         except Exception as e:
             self.error_check(f"Unexpected error: {e}")
@@ -289,10 +315,12 @@ class Check_1_22(CISCheck):
             
             violating_policies = []
             policies_evidence = []
+            evaluated_attached_local_policies = 0
             
             for page in paginator.paginate(Scope='Local'):
                 for policy in page.get('Policies', []):
                     if policy.get('AttachmentCount', 0) > 0:
+                        evaluated_attached_local_policies += 1
                         policy_version = iam.get_policy_version(
                             PolicyArn=policy['Arn'], 
                             VersionId=policy['DefaultVersionId']
@@ -324,7 +352,10 @@ class Check_1_22(CISCheck):
             if violating_policies:
                 self.fail_check(f"Found policies with '*:*' permissions attached: {', '.join(violating_policies)}", evidence={"ViolatingPolicies": policies_evidence})
             else:
-                self.pass_check("No customer-managed policies with '*:*' permissions are attached.")
+                self.pass_check(
+                    "No customer-managed policies with '*:*' permissions are attached.",
+                    evidence={"EvaluatedAttachedLocalPolicies": evaluated_attached_local_policies, "ViolatingPolicies": []}
+                )
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to list or evaluate policies: {e}")

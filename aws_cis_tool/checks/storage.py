@@ -17,6 +17,7 @@ class Check_2_1(CISCheck):
             s3 = self.auth.get_client('s3')
             buckets = s3.list_buckets().get('Buckets', [])
             violating_buckets = []
+            access_denied_buckets = []
             
             for bucket in buckets:
                 bucket_name = bucket['Name']
@@ -45,14 +46,20 @@ class Check_2_1(CISCheck):
                         violating_buckets.append(bucket_name)
                     elif error_code == 'AccessDenied':
                         self.details.append(f"AccessDenied reading policy for bucket {bucket_name}")
+                        access_denied_buckets.append(bucket_name)
                         violating_buckets.append(bucket_name)
                     else:
                         raise e
                         
+            evidence = {
+                "TotalBuckets": len(buckets),
+                "ViolatingBuckets": violating_buckets,
+                "AccessDeniedBuckets": access_denied_buckets,
+            }
             if violating_buckets:
-                self.fail_check(f"Buckets without SecureTransport enforced: {', '.join(violating_buckets)}")
+                self.fail_check(f"Buckets without SecureTransport enforced: {', '.join(violating_buckets)}", evidence=evidence)
             else:
-                self.pass_check("All buckets enforce SecureTransport via bucket policies.")
+                self.pass_check("All buckets enforce SecureTransport via bucket policies.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to evaluate S3 bucket policies: {e}")
@@ -76,11 +83,12 @@ class Check_2_2(CISCheck):
             
             trails = cloudtrail.describe_trails().get('trailList', [])
             if not trails:
-                self.fail_check("No CloudTrail trails configured, skipping S3 bucket logging check.")
+                self.fail_check("No CloudTrail trails configured, skipping S3 bucket logging check.", evidence={"Trails": []})
                 return
                 
             trail_buckets = set([t.get('S3BucketName') for t in trails if t.get('S3BucketName')])
             violating_buckets = []
+            access_denied_buckets = []
             
             for bucket_name in trail_buckets:
                 try:
@@ -90,13 +98,19 @@ class Check_2_2(CISCheck):
                 except botocore.exceptions.ClientError as e:
                     if e.response['Error']['Code'] == 'AccessDenied':
                         self.details.append(f"AccessDenied checking logging for bucket {bucket_name}")
+                        access_denied_buckets.append(bucket_name)
                     else:
                         raise e
                         
+            evidence = {
+                "TrailBuckets": sorted(trail_buckets),
+                "ViolatingBuckets": violating_buckets,
+                "AccessDeniedBuckets": access_denied_buckets,
+            }
             if violating_buckets:
-                self.fail_check(f"CloudTrail buckets without access logging enabled: {', '.join(violating_buckets)}")
+                self.fail_check(f"CloudTrail buckets without access logging enabled: {', '.join(violating_buckets)}", evidence=evidence)
             else:
-                self.pass_check("All CloudTrail S3 buckets have access logging enabled.")
+                self.pass_check("All CloudTrail S3 buckets have access logging enabled.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to evaluate S3 bucket logging: {e}")
@@ -118,6 +132,8 @@ class Check_2_3(CISCheck):
             s3 = self.auth.get_client('s3')
             buckets = s3.list_buckets().get('Buckets', [])
             violating_buckets = []
+            access_denied_buckets = []
+            other_errors = []
             
             for bucket in buckets:
                 bucket_name = bucket['Name']
@@ -139,11 +155,24 @@ class Check_2_3(CISCheck):
                     else:
                         # Could be access denied or other error
                         self.details.append(f"Error checking {bucket_name}: {error_code}")
+                        if error_code == 'AccessDenied':
+                            access_denied_buckets.append(bucket_name)
+                        else:
+                            other_errors.append({"Bucket": bucket_name, "Code": error_code})
             
+            evidence = {
+                "TotalBuckets": len(buckets),
+                "ViolatingBuckets": violating_buckets,
+                "AccessDeniedBuckets": access_denied_buckets,
+                "OtherErrors": other_errors[:50],
+            }
+            if len(other_errors) > 50:
+                evidence["OtherErrorsTruncated"] = len(other_errors) - 50
+
             if violating_buckets:
-                self.fail_check(f"Buckets without Block Public Access enabled: {', '.join(violating_buckets)}")
+                self.fail_check(f"Buckets without Block Public Access enabled: {', '.join(violating_buckets)}", evidence=evidence)
             else:
-                self.pass_check("All buckets have Block Public Access enabled.")
+                self.pass_check("All buckets have Block Public Access enabled.", evidence=evidence)
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check S3 Block Public Access: {e}")

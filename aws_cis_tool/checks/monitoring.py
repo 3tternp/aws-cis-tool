@@ -25,6 +25,7 @@ class MetricFilterAlarmCheck(CISCheck):
             found_filter = False
             metric_name = None
             metric_namespace = None
+            matched_filter = None
             
             for page in paginator.paginate():
                 for mf in page['metricFilters']:
@@ -32,6 +33,12 @@ class MetricFilterAlarmCheck(CISCheck):
                     # Check if all keywords are present in the pattern
                     if all(k in pattern for k in self.keywords):
                         found_filter = True
+                        matched_filter = {
+                            "filterName": mf.get('filterName'),
+                            "logGroupName": mf.get('logGroupName'),
+                            "filterPattern": pattern,
+                            "metricTransformations": mf.get('metricTransformations', []),
+                        }
                         if mf['metricTransformations']:
                             metric_name = mf['metricTransformations'][0]['metricName']
                             metric_namespace = mf['metricTransformations'][0]['metricNamespace']
@@ -40,7 +47,10 @@ class MetricFilterAlarmCheck(CISCheck):
                     break
             
             if not found_filter:
-                self.fail_check(f"No metric filter found matching pattern keywords: {self.keywords}")
+                self.fail_check(
+                    f"No metric filter found matching pattern keywords: {self.keywords}",
+                    evidence={"Keywords": self.keywords}
+                )
                 return
 
             # Now check for alarm
@@ -49,10 +59,17 @@ class MetricFilterAlarmCheck(CISCheck):
                 Namespace=metric_namespace
             )
             
+            evidence = {
+                "Keywords": self.keywords,
+                "MetricName": metric_name,
+                "MetricNamespace": metric_namespace,
+                "MatchedMetricFilter": matched_filter,
+                "Alarms": [a.get('AlarmName') for a in alarms.get('MetricAlarms', [])],
+            }
             if alarms['MetricAlarms']:
-                self.pass_check(f"Metric filter and alarm found for {self.title}.")
+                self.pass_check(f"Metric filter and alarm found for {self.title}.", evidence=evidence)
             else:
-                self.fail_check(f"Metric filter found ({metric_name}) but NO alarm associated.")
+                self.fail_check(f"Metric filter found ({metric_name}) but NO alarm associated.", evidence=evidence)
 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check monitoring: {e}")
