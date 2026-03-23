@@ -1,1 +1,1 @@
-# AWS CIS Benchmark Tool
+__version__ = "1.0.0"

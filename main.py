@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from colorama import init, Fore, Style
 from tabulate import tabulate
+from aws_cis_tool import __version__
 from aws_cis_tool.auth import AWSAuth
 from aws_cis_tool.checks import get_all_checks
 from aws_cis_tool.report import ReportGenerator
@@ -15,6 +16,7 @@ def print_banner():
  / ___ | |/ |/ / ___/ / / /____/ // ___ / /_/ /  __/ / / / /__/ / / / / / / / / /_/ / /  / ,<   
 /_/  |_|__/|__//____/  \\____/___/_/  |_/_____/\\___/_/ /_/\\___/_/ /_/_/ /_/ /_/\\__,_/_/  /_/|_|  
                                                                                                 
+    v{__version__}
     {Style.RESET_ALL}"""
     print(banner)
 
@@ -27,12 +29,13 @@ def print_changelog():
 
 def main():
     init(autoreset=True)
-    parser = argparse.ArgumentParser(description="AWS CIS Benchmark Tool")
+    parser = argparse.ArgumentParser(description=f"AWS CIS Benchmark Tool v{__version__}")
     parser.add_argument("-p", "--profile", help="AWS profile name to use (for standard or SSO)", default=None)
     parser.add_argument("-r", "--region", help="AWS region to use", default=None)
     parser.add_argument("-o", "--output", help="Output format: json, html, pdf, or all", choices=['json', 'html', 'pdf', 'all'], default='all')
     parser.add_argument("-d", "--output-dir", help="Directory to save reports", default="reports")
     parser.add_argument("--changelog", help="Print changelog and exit", action="store_true")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     
     args = parser.parse_args()
 

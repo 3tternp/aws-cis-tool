@@ -26,7 +26,7 @@ class Check_3_1(CISCheck):
                     "IsMultiRegionTrail": trail.get('IsMultiRegionTrail'),
                     "LogFileValidationEnabled": trail.get('LogFileValidationEnabled'),
                 }
-                if trail.get('IsMultiRegionTrail') and trail.get('LogFileValidationEnabled') and trail.get('TrailARN'):
+                if trail.get('IsMultiRegionTrail') and trail.get('TrailARN'):
                     status = cloudtrail.get_trail_status(Name=trail['TrailARN'])
                     trail_info["IsLogging"] = status.get('IsLogging')
                     if status.get('IsLogging'):
@@ -81,6 +81,119 @@ class Check_3_2(CISCheck):
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check CloudTrail log file validation: {e}")
+        except Exception as e:
+            self.error_check(f"Unexpected error: {e}")
+
+class Check_3_3(CISCheck):
+    def __init__(self, auth_session):
+        super().__init__(
+            auth_session,
+            check_id="3.3",
+            title="Ensure the S3 bucket used to store CloudTrail logs is not publicly accessible",
+            category="Logging",
+            description="CloudTrail logs should be stored in a bucket that is not publicly accessible."
+        )
+
+    def execute(self):
+        try:
+            cloudtrail = self.auth.get_client('cloudtrail')
+            s3 = self.auth.get_client('s3')
+
+            trails = cloudtrail.describe_trails().get('trailList', [])
+            trail_buckets = sorted({t.get('S3BucketName') for t in trails if t.get('S3BucketName')})
+            if not trail_buckets:
+                self.fail_check("No CloudTrail trails with an S3 bucket configured were found.", evidence={"Trails": trails, "TrailBuckets": []})
+                return
+
+            violating = []
+            access_denied = []
+            buckets_evaluated = []
+
+            public_group_uris = {
+                "http://acs.amazonaws.com/groups/global/AllUsers",
+                "http://acs.amazonaws.com/groups/global/AuthenticatedUsers",
+            }
+
+            for bucket_name in trail_buckets:
+                bucket_info = {"Bucket": bucket_name}
+                try:
+                    try:
+                        ps = s3.get_bucket_policy_status(Bucket=bucket_name).get("PolicyStatus", {})
+                        bucket_info["PolicyIsPublic"] = ps.get("IsPublic")
+                    except botocore.exceptions.ClientError as e:
+                        code = e.response.get("Error", {}).get("Code", "")
+                        if code in {"NoSuchBucketPolicy", "NoSuchBucketPolicyStatus"}:
+                            bucket_info["PolicyIsPublic"] = False
+                        else:
+                            raise
+
+                    try:
+                        acl = s3.get_bucket_acl(Bucket=bucket_name)
+                        public_acl = False
+                        for g in acl.get("Grants", []):
+                            grantee = g.get("Grantee") or {}
+                            if grantee.get("Type") == "Group" and grantee.get("URI") in public_group_uris:
+                                public_acl = True
+                                break
+                        bucket_info["AclHasPublicGrant"] = public_acl
+                    except botocore.exceptions.ClientError as e:
+                        code = e.response.get("Error", {}).get("Code", "")
+                        if code == "AccessDenied":
+                            bucket_info["AclAccessDenied"] = True
+                        else:
+                            raise
+
+                    try:
+                        pab = s3.get_public_access_block(Bucket=bucket_name).get("PublicAccessBlockConfiguration", {})
+                        bucket_info["PublicAccessBlock"] = pab
+                        bucket_info["PublicAccessBlockAllEnabled"] = all(
+                            [
+                                pab.get("BlockPublicAcls"),
+                                pab.get("IgnorePublicAcls"),
+                                pab.get("BlockPublicPolicy"),
+                                pab.get("RestrictPublicBuckets"),
+                            ]
+                        )
+                    except botocore.exceptions.ClientError as e:
+                        code = e.response.get("Error", {}).get("Code", "")
+                        if code == "NoSuchPublicAccessBlockConfiguration":
+                            bucket_info["PublicAccessBlockAllEnabled"] = False
+                        elif code == "AccessDenied":
+                            bucket_info["PublicAccessBlockAccessDenied"] = True
+                        else:
+                            raise
+
+                    is_public = bool(bucket_info.get("PolicyIsPublic")) or bool(bucket_info.get("AclHasPublicGrant"))
+                    bucket_info["IsPublic"] = is_public
+                    if is_public:
+                        violating.append(bucket_name)
+                except botocore.exceptions.ClientError as e:
+                    code = e.response.get("Error", {}).get("Code", "")
+                    if code == "AccessDenied":
+                        access_denied.append(bucket_name)
+                        bucket_info["AccessDenied"] = True
+                    else:
+                        bucket_info["Error"] = {"Code": code, "Message": str(e)}
+                        access_denied.append(bucket_name)
+
+                buckets_evaluated.append(bucket_info)
+
+            evidence = {
+                "TrailBuckets": trail_buckets,
+                "Buckets": buckets_evaluated,
+                "ViolatingBuckets": violating,
+                "AccessDeniedBuckets": access_denied,
+            }
+
+            if access_denied:
+                self.error_check("Unable to evaluate CloudTrail S3 bucket public access for one or more buckets.", evidence=evidence)
+            elif violating:
+                self.fail_check(f"CloudTrail log buckets publicly accessible: {', '.join(violating)}", evidence=evidence)
+            else:
+                self.pass_check("CloudTrail log buckets are not publicly accessible.", evidence=evidence)
+
+        except botocore.exceptions.ClientError as e:
+            self.error_check(f"Failed to evaluate CloudTrail S3 bucket public access: {e}")
         except Exception as e:
             self.error_check(f"Unexpected error: {e}")
 
@@ -168,6 +281,59 @@ class Check_3_5(CISCheck):
         except Exception as e:
             self.error_check(f"Unexpected error: {e}")
 
+class Check_3_6(CISCheck):
+    def __init__(self, auth_session):
+        super().__init__(
+            auth_session,
+            check_id="3.6",
+            title="Ensure S3 bucket access logging is enabled on the CloudTrail S3 bucket",
+            category="Logging",
+            description="S3 bucket access logging generates a log that contains access records for each request made to your S3 bucket."
+        )
+
+    def execute(self):
+        try:
+            cloudtrail = self.auth.get_client('cloudtrail')
+            s3 = self.auth.get_client('s3')
+
+            trails = cloudtrail.describe_trails().get('trailList', [])
+            if not trails:
+                self.fail_check("No CloudTrail trails configured, skipping S3 bucket logging check.", evidence={"Trails": []})
+                return
+
+            trail_buckets = set([t.get('S3BucketName') for t in trails if t.get('S3BucketName')])
+            violating_buckets = []
+            access_denied_buckets = []
+
+            for bucket_name in trail_buckets:
+                try:
+                    logging = s3.get_bucket_logging(Bucket=bucket_name)
+                    if not logging.get('LoggingEnabled'):
+                        violating_buckets.append(bucket_name)
+                except botocore.exceptions.ClientError as e:
+                    if e.response['Error']['Code'] == 'AccessDenied':
+                        self.details.append(f"AccessDenied checking logging for bucket {bucket_name}")
+                        access_denied_buckets.append(bucket_name)
+                    else:
+                        raise e
+
+            evidence = {
+                "TrailBuckets": sorted(trail_buckets),
+                "ViolatingBuckets": violating_buckets,
+                "AccessDeniedBuckets": access_denied_buckets,
+            }
+            if access_denied_buckets:
+                self.error_check("Unable to evaluate access logging for one or more CloudTrail buckets.", evidence=evidence)
+            elif violating_buckets:
+                self.fail_check(f"CloudTrail buckets without access logging enabled: {', '.join(violating_buckets)}", evidence=evidence)
+            else:
+                self.pass_check("All CloudTrail S3 buckets have access logging enabled.", evidence=evidence)
+
+        except botocore.exceptions.ClientError as e:
+            self.error_check(f"Failed to evaluate S3 bucket logging: {e}")
+        except Exception as e:
+            self.error_check(f"Unexpected error: {e}")
+
 class Check_3_7(CISCheck):
     def __init__(self, auth_session):
         super().__init__(
@@ -205,6 +371,82 @@ class Check_3_7(CISCheck):
                 
         except botocore.exceptions.ClientError as e:
             self.error_check(f"Failed to check CloudTrail encryption: {e}")
+        except Exception as e:
+            self.error_check(f"Unexpected error: {e}")
+
+class Check_3_8(CISCheck):
+    def __init__(self, auth_session):
+        super().__init__(
+            auth_session,
+            check_id="3.8",
+            title="Ensure rotation for customer created symmetric CMKs is enabled",
+            category="Logging",
+            description="KMS key rotation reduces the risk of a compromised key being used for long periods of time."
+        )
+
+    def execute(self):
+        try:
+            kms = self.auth.get_client('kms')
+            paginator = kms.get_paginator('list_keys')
+
+            checked = 0
+            customer_symmetric_checked = 0
+            violating = []
+            skipped = 0
+            other_errors = []
+
+            for page in paginator.paginate():
+                for k in page.get('Keys', []):
+                    checked += 1
+                    key_id = k.get('KeyId')
+                    if not key_id:
+                        continue
+                    try:
+                        metadata = kms.describe_key(KeyId=key_id).get('KeyMetadata', {})
+                        if metadata.get('KeyManager') != 'CUSTOMER':
+                            skipped += 1
+                            continue
+
+                        key_spec = metadata.get('KeySpec') or metadata.get('CustomerMasterKeySpec')
+                        if key_spec != 'SYMMETRIC_DEFAULT':
+                            skipped += 1
+                            continue
+
+                        customer_symmetric_checked += 1
+                        rotation = kms.get_key_rotation_status(KeyId=key_id)
+                        if not rotation.get('KeyRotationEnabled'):
+                            violating.append(
+                                {
+                                    "KeyId": key_id,
+                                    "Arn": metadata.get('Arn'),
+                                    "Description": metadata.get('Description'),
+                                }
+                            )
+                    except botocore.exceptions.ClientError as e:
+                        code = e.response.get('Error', {}).get('Code', '')
+                        other_errors.append({"KeyId": key_id, "Code": code, "Message": str(e)})
+
+            evidence = {
+                "TotalKeys": checked,
+                "CustomerSymmetricKeysChecked": customer_symmetric_checked,
+                "SkippedKeys": skipped,
+                "ViolatingKeys": violating[:200],
+                "OtherErrors": other_errors[:50],
+            }
+            if len(violating) > 200:
+                evidence["ViolatingKeysTruncated"] = len(violating) - 200
+            if len(other_errors) > 50:
+                evidence["OtherErrorsTruncated"] = len(other_errors) - 50
+
+            if other_errors:
+                self.error_check("Unable to evaluate KMS key rotation for one or more keys.", evidence=evidence)
+            elif violating:
+                self.fail_check(f"Customer managed symmetric CMKs without rotation enabled: {len(violating)}", evidence=evidence)
+            else:
+                self.pass_check("Customer managed symmetric CMK rotation is enabled for all applicable keys.", evidence=evidence)
+
+        except botocore.exceptions.ClientError as e:
+            self.error_check(f"Failed to evaluate KMS key rotation: {e}")
         except Exception as e:
             self.error_check(f"Unexpected error: {e}")
 
@@ -264,8 +506,11 @@ def get_logging_checks(auth_session):
     return [
         Check_3_1(auth_session),
         Check_3_2(auth_session),
+        Check_3_3(auth_session),
         Check_3_4(auth_session),
         Check_3_5(auth_session),
+        Check_3_6(auth_session),
         Check_3_7(auth_session),
+        Check_3_8(auth_session),
         Check_3_9(auth_session)
     ]

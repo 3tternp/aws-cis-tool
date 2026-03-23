@@ -1,4 +1,4 @@
-# AWS CIS Benchmark Tool
+# AWS CIS Benchmark Tool (v1.0.0)
 
 A comprehensive, automated security compliance tool designed to audit your AWS environment against the **Center for Internet Security (CIS) AWS Foundations Benchmark v1.5**. This tool helps identify security misconfigurations in IAM, Storage (S3), Logging (CloudTrail), Monitoring (CloudWatch), and Networking (VPC/EC2).
 
@@ -88,7 +88,7 @@ docker run --rm -it \
 
 ## 🛡️ Supported CIS Benchmark Controls
 
-The tool currently implements over **25+ checks** covering critical Level 1 & Level 2 controls:
+The tool currently implements over **40+ checks** covering critical Level 1 & Level 2 controls:
 
 ### **1. Identity and Access Management (IAM)**
 - [1.1] Root account access keys
@@ -102,28 +102,35 @@ The tool currently implements over **25+ checks** covering critical Level 1 & Le
 - [1.22] No Administrative ("*:*") Policies
 
 ### **2. Storage (S3)**
-- [2.1] Enforce SSL (SecureTransport) in Bucket Policies
-- [2.2] S3 Bucket Access Logging
-- [2.3] S3 Block Public Access
+- [2.1.1] S3 buckets employ encryption-at-rest
+- [2.1.2] S3 Bucket Policy denies HTTP requests (SecureTransport)
+- [2.1.3] MFA Delete enabled on S3 buckets
+- [2.1.5] S3 Block Public Access (bucket settings)
 
-### **3. Logging & Monitoring**
-- [3.1 - 3.14] **Complete CloudWatch Monitoring Suite**:
+### **3. Logging**
+- [3.1] CloudTrail Enabled (Multi-region)
+- [3.2] Log File Validation
+- [3.3] CloudTrail S3 bucket not publicly accessible
+- [3.4] CloudWatch Logs Integration
+- [3.5] AWS Config Enabled
+- [3.6] CloudTrail S3 bucket access logging enabled
+- [3.7] CloudTrail KMS Encryption
+- [3.8] KMS CMK rotation enabled
+- [3.9] VPC Flow Logs Enabled
+
+### **4. Monitoring**
+- [4.1 - 4.14] **CloudWatch Log Metric Filter + Alarm suite**:
   - Unauthorized API calls, Console sign-in without MFA, Root usage.
   - IAM policy changes, CloudTrail config changes, Console failures.
   - CMK deletion, S3 policy changes, Config changes.
   - Security Group, NACL, Network Gateway, Route Table, and VPC changes.
-- [3.1] CloudTrail Enabled (Multi-region)
-- [3.2] Log File Validation
-- [3.4] CloudWatch Logs Integration
-- [3.5] AWS Config Enabled
-- [3.7] CloudTrail KMS Encryption
-- [3.9] VPC Flow Logs Enabled
 
 ### **5. Networking**
 - [5.1] SSH (Port 22) restricted from 0.0.0.0/0
 - [5.2] RDP (Port 3389) restricted from 0.0.0.0/0
-- [5.3] Default Security Group restricts all traffic
-- [5.4] NACLs restrict ingress to remote admin ports
+- [5.3] NACLs restrict ingress to remote admin ports
+- [5.4] Default Security Group restricts all traffic
+- [5.5] VPC peering route tables are least access (Manual)
 
 ### **6. Security**
 - [6.1] GuardDuty enabled (region)
@@ -135,7 +142,6 @@ The tool currently implements over **25+ checks** covering critical Level 1 & Le
 - [6.7] S3 account-level Block Public Access enabled
 - [6.8] EC2 instances require IMDSv2
 - [6.9] All EBS volumes encrypted
-- [6.10] S3 bucket default encryption enabled
 
 ## 📂 Project Structure
 

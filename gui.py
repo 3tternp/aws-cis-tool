@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from tabulate import tabulate
 
+from aws_cis_tool import __version__
 from aws_cis_tool.auth import AWSAuth
 from aws_cis_tool.checks import get_all_checks
 from aws_cis_tool.report import ReportGenerator
@@ -31,7 +32,7 @@ class TextRedirector:
 class AWSCISApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("AWS CIS Benchmark Scanner")
+        self.title(f"AWS CIS Benchmark Scanner v{__version__}")
         self.geometry("850x700")
         
         # Configure grid weight for responsive design
@@ -56,7 +57,7 @@ class AWSCISApp(tk.Tk):
             "  / _ \\ | |    \\___ \\    \\___ \\| | | || | | |  ______  | |          \n"
             " / ___ \\| |___  ___) |    ___) | |_| || |_| | |______| | |___       \n"
             "/_/   \\_\\_____|/____/    /____/ \\_____/|_____/          |_____|      \n"
-            "                 AWS CIS Benchmark Scanner                            "
+            f"                 AWS CIS Benchmark Scanner v{__version__}                        "
         )
         header_frame = ttk.Frame(main_frame)
         header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))

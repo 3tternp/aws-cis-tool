@@ -10,7 +10,7 @@ def get_all_checks(auth_session):
     checks.extend(get_iam_checks(auth_session))
     checks.extend(get_storage_checks(auth_session))
     checks.extend(get_logging_checks(auth_session))
-    checks.extend(get_networking_checks(auth_session))
     checks.extend(get_monitoring_checks(auth_session))
+    checks.extend(get_networking_checks(auth_session))
     checks.extend(get_security_checks(auth_session))
     return checks

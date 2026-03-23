@@ -434,65 +434,6 @@ class Check_6_9(CISCheck):
             self.error_check(f"Unexpected error: {e}")
 
 
-class Check_6_10(CISCheck):
-    def __init__(self, auth_session):
-        super().__init__(
-            auth_session,
-            check_id="6.10",
-            title="Ensure S3 bucket default encryption is enabled",
-            category="Security",
-            description="S3 default encryption helps ensure objects are encrypted at rest when uploaded to a bucket."
-        )
-
-    def execute(self):
-        try:
-            s3 = self.auth.get_client('s3')
-            buckets = s3.list_buckets().get('Buckets', [])
-
-            missing = []
-            denied = []
-            other_errors = []
-
-            for b in buckets:
-                name = b.get('Name')
-                if not name:
-                    continue
-                try:
-                    enc = s3.get_bucket_encryption(Bucket=name)
-                    rules = ((enc.get('ServerSideEncryptionConfiguration') or {}).get('Rules') or [])
-                    if not rules:
-                        missing.append(name)
-                except botocore.exceptions.ClientError as e:
-                    code = e.response.get('Error', {}).get('Code', '')
-                    if code == 'ServerSideEncryptionConfigurationNotFoundError':
-                        missing.append(name)
-                    elif code == 'AccessDenied':
-                        denied.append(name)
-                    else:
-                        other_errors.append({"Bucket": name, "Code": code, "Message": str(e)})
-
-            evidence = {
-                "TotalBuckets": len(buckets),
-                "BucketsWithoutDefaultEncryption": missing,
-                "BucketsAccessDenied": denied,
-                "OtherErrors": other_errors[:50],
-            }
-            if len(other_errors) > 50:
-                evidence["OtherErrorsTruncated"] = len(other_errors) - 50
-
-            if denied or other_errors:
-                self.error_check("Unable to evaluate S3 bucket default encryption for one or more buckets.", evidence=evidence)
-            elif missing:
-                self.fail_check(f"Buckets without default encryption: {', '.join(missing)}", evidence=evidence)
-            else:
-                self.pass_check("All S3 buckets have default encryption enabled.", evidence=evidence)
-
-        except botocore.exceptions.ClientError as e:
-            self.error_check(f"Failed to check S3 bucket encryption: {e}")
-        except Exception as e:
-            self.error_check(f"Unexpected error: {e}")
-
-
 def get_security_checks(auth_session):
     return [
         Check_6_1(auth_session),
@@ -504,5 +445,4 @@ def get_security_checks(auth_session):
         Check_6_7(auth_session),
         Check_6_8(auth_session),
         Check_6_9(auth_session),
-        Check_6_10(auth_session),
     ]
