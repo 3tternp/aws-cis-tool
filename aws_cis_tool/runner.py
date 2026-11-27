@@ -2,6 +2,7 @@
 import traceback
 
 from .checks import get_all_checks
+from .remediation import enrich
 from .report import ReportGenerator
 
 PERMISSION_HINT = ("Permission issue: attach the AWS managed policies 'SecurityAudit' and "
@@ -30,7 +31,7 @@ def run_scan(auth, on_progress=None, should_stop=None):
         if check.result == "ERROR" and any(s in " ".join(map(str, check.details)) for s in _DENIED):
             if PERMISSION_HINT not in check.details:
                 check.details.append(PERMISSION_HINT)
-        d = check.to_dict()
+        d = enrich(check.to_dict())
         results.append(d)
         if on_progress:
             on_progress(i, total, d)
