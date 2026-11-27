@@ -77,6 +77,14 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding
 .reports a{padding:9px 16px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--text);text-decoration:none;font-weight:700}
 .reports a:hover{border-color:var(--accent)}
 .empty{text-align:center;color:var(--muted);padding:40px 10px}
+.sevrow{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px}
+.sv{padding:10px 14px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);border-top:3px solid}
+.sv b{font-size:22px;display:block;line-height:1.1}.sv span{font-size:12px;color:var(--muted);font-weight:600}
+.sv.CRITICAL{border-top-color:#b91c1c}.sv.CRITICAL b{color:#b91c1c}.sv.HIGH{border-top-color:#ea580c}.sv.HIGH b{color:#ea580c}
+.sv.MEDIUM{border-top-color:#d97706}.sv.MEDIUM b{color:#d97706}.sv.LOW{border-top-color:#2563eb}.sv.LOW b{color:#2563eb}
+.sevb{color:#fff!important}.sevb.CRITICAL{background:#b91c1c}.sevb.HIGH{background:#ea580c}.sevb.MEDIUM{background:#d97706}.sevb.LOW{background:#2563eb}
+.fixbox{margin-top:10px;padding:2px 14px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
+.fixbox h5{margin:10px 0 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .hidden{display:none!important}
 </style>
 </head>
@@ -146,6 +154,12 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding
           <div class="stat man"><b id="n-MANUAL_VERIFICATION_REQUIRED">0</b><span>Manual</span></div>
         </div>
       </div>
+      <div class="sevrow">
+        <div class="sv CRITICAL"><b id="s-CRITICAL">0</b><span>Critical</span></div>
+        <div class="sv HIGH"><b id="s-HIGH">0</b><span>High</span></div>
+        <div class="sv MEDIUM"><b id="s-MEDIUM">0</b><span>Medium</span></div>
+        <div class="sv LOW"><b id="s-LOW">0</b><span>Low</span></div>
+      </div>
       <div class="bar"><i id="bar"></i></div>
       <div class="status-line" id="status">Ready. Enter credentials and run a scan.</div>
       <div class="id hidden" id="identity"></div>
@@ -206,7 +220,7 @@ $("#form").onsubmit=async ev=>{
   const r=await fetch("/api/scan",{method:"POST",headers:H,body:JSON.stringify(body)});
   const d=await r.json();
   if(!r.ok){showErr(d.error);return}
-  results=[];offset=0;render();$("#reports-card").classList.add("hidden");
+  results=[];offset=0;sevTally();render();$("#reports-card").classList.add("hidden");
   setBusy(true);poll();
 };
 $("#stop").onclick=()=>{fetch("/api/stop",{method:"POST",headers:H,body:"{}"});$("#status").textContent="Stopping after current check…"};
@@ -221,7 +235,7 @@ async function poll(){
   $("#bar").style.width=(s.state==="authenticating"?5:pct)+"%";
   if(s.identity&&s.identity.Account){$("#identity").classList.remove("hidden");
     $("#identity").innerHTML=`<span>Account <b>${esc(s.identity.Account)}</b></span><span>Region <b>${esc(s.identity.Region)}</b></span><span>Identity <b>${esc(s.identity.Arn)}</b></span>`}
-  const sm=tally();setStats(sm);
+  const sm=tally();setStats(sm);sevTally();
   if(s.state==="authenticating")$("#status").textContent="Authenticating with AWS…";
   else if(s.state==="running")$("#status").textContent=`Running ${s.progress}/${s.total} · ${s.current}`;
   render();
@@ -235,6 +249,9 @@ async function poll(){
       $("#reports").innerHTML=keys.map(k=>`<a target="_blank" href="/api/report/${encodeURIComponent(f[k])}?t=${TOKEN}">${k.toUpperCase()} report</a>`).join("")}}
 }
 
+function sevTally(){const t={CRITICAL:0,HIGH:0,MEDIUM:0,LOW:0};
+  for(const r of results)if(r.result==="FAIL")t[r.severity]=(t[r.severity]||0)+1;
+  for(const k in t)document.getElementById("s-"+k).textContent=t[k]}
 function tally(){const t={PASS:0,FAIL:0,ERROR:0,MANUAL_VERIFICATION_REQUIRED:0};for(const r of results)t[r.result]=(t[r.result]||0)+1;return t}
 function setStats(t){for(const k of Object.keys(t)){const e=document.getElementById("n-"+k);if(e)e.textContent=t[k]}
   const auto=t.PASS+t.FAIL;const pct=auto?Math.round(t.PASS/auto*100):null;
@@ -257,11 +274,13 @@ function render(){
   $("#list").innerHTML=rows.map(r=>{
     const det=(r.details||[]).map(d=>`<li>${esc(d)}</li>`).join("");
     const ev=r.evidence&&Object.keys(r.evidence).length?`<pre>${esc(JSON.stringify(r.evidence,null,2))}</pre>`:"";
+    const fix=r.result!=="PASS"?`<div class="fixbox"><h5>Recommendation</h5><p>${esc(r.recommendation)}</p>${r.command?`<h5>Remediation command</h5><pre>${esc(r.command)}</pre>`:""}</div>`:"";
     const label=r.result==="MANUAL_VERIFICATION_REQUIRED"?"MANUAL":r.result;
     return `<details class="item" data-id="${esc(r.check_id)}" ${open.has(r.check_id)?"open":""}>
       <summary><span class="cid">${esc(r.check_id)}</span><span class="ttl">${esc(r.title)}<div class="cat">${esc(r.category)} · ${esc(r.check_type)}</div></span>
+      <span class="badge sevb ${esc(r.severity)}">${esc(r.severity)}</span>
       <span class="badge b-${esc(r.result)}">${label}</span></summary>
-      <div class="body"><p>${esc(r.description)}</p>${det?`<ul>${det}</ul>`:""}${ev}</div></details>`}).join("");
+      <div class="body"><p>${esc(r.description)}</p>${det?`<ul>${det}</ul>`:""}${fix}${ev}</div></details>`}).join("");
 }
 // resume view if a scan is already running (page refresh)
 fetch("/api/status",{headers:H}).then(r=>r.json()).then(s=>{if(s.state!=="idle"){setBusy(s.state==="running"||s.state==="authenticating");poll()}});

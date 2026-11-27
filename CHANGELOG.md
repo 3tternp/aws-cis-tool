@@ -2,6 +2,14 @@
 
 ## 1.1.0 - 2026-11-27
 
+### Reports
+
+- Redesigned HTML and PDF reports with an executive dashboard: compliance score, Critical/High/Medium/Low counts of failed findings, passed/failed/manual/error totals, per-category chart and a "Fix first" list.
+- Every check now has a severity rating, a plain-English recommendation and an AWS CLI remediation command (`aws_cis_tool/remediation.py`).
+- HTML report: search, status/severity/category filters, click-to-filter severity cards, copy buttons, dark mode, print friendly.
+- JSON report now includes `severity_summary`, `manual_checks_by_severity`, `compliance_score` and per-result `severity` / `recommendation` / `command`.
+- Findings are sorted by status and severity (most severe first).
+
 ### Added
 
 - New modern web dashboard (`python gui.py`) replacing the Tkinter GUI: live progress, compliance ring, search/filter, expandable evidence, light/dark theme, report downloads.
