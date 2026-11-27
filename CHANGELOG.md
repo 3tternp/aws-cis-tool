@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.0 - 2026-11-27
+
+### Added
+
+- New modern web dashboard (`python gui.py`) replacing the Tkinter GUI: live progress, compliance ring, search/filter, expandable evidence, light/dark theme, report downloads.
+- `--access-key/--secret-key/--session-token` CLI options.
+- Shared scan runner (`aws_cis_tool/runner.py`) used by CLI and UI; each check is isolated so one failure cannot abort a scan.
+
+### Fixed
+
+- Scanning with access keys failed ~45 checks with "You must specify a region" when no region was set; region now defaults to us-east-1.
+- Pasted keys with stray whitespace/quotes are cleaned; `ASIA` keys without a session token are rejected with a clear message.
+- Clear messages for invalid key, signature mismatch, expired token and missing permissions (hint: SecurityAudit + ViewOnlyAccess).
+- Adaptive retries and timeouts on all AWS clients to survive throttling.
+- Removed committed `__pycache__` files.
+
 ## 1.0.0 - 2026-03-23
 
 ### Added
