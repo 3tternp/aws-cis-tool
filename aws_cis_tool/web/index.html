@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AWS CIS Scanner</title>
+<style>
+:root{
+  --bg:#f5f6fa;--panel:#fff;--panel2:#f0f2f8;--text:#161a2b;--muted:#6a7089;--line:#e2e5f0;
+  --accent:#6d5efc;--accent2:#9b6dff;--pass:#12a150;--fail:#e5484d;--err:#e8a100;--man:#3b82f6;
+  --passbg:#e3f6ec;--failbg:#fde8e9;--errbg:#fdf3d8;--manbg:#e4eefe;--shadow:0 1px 2px rgba(20,24,50,.06),0 8px 24px rgba(20,24,50,.06);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#0d0f1a;--panel:#161929;--panel2:#1d2135;--text:#e8eaf6;--muted:#8a90ad;--line:#262b45;
+  --passbg:#10301f;--failbg:#3a1519;--errbg:#3a2d0a;--manbg:#13294d;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);}}
+:root[data-theme=dark]{--bg:#0d0f1a;--panel:#161929;--panel2:#1d2135;--text:#e8eaf6;--muted:#8a90ad;--line:#262b45;
+  --passbg:#10301f;--failbg:#3a1519;--errbg:#3a2d0a;--manbg:#13294d;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 24px;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#fff;font-weight:800}
+h1{font-size:16px;margin:0}h1 small{display:block;color:var(--muted);font-weight:500;font-size:12px}
+.spacer{flex:1}
+button{font:inherit;cursor:pointer}
+.icon-btn{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:7px 12px}
+.icon-btn:hover{border-color:var(--accent)}
+main{max-width:1280px;margin:0 auto;padding:24px;display:grid;grid-template-columns:360px 1fr;gap:24px}
+@media(max-width:960px){main{grid-template-columns:1fr;padding:16px}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+.tabs{display:flex;background:var(--panel2);border-radius:10px;padding:3px;margin-bottom:14px}
+.tabs button{flex:1;border:0;background:none;color:var(--muted);padding:7px;border-radius:8px;font-weight:600}
+.tabs button.on{background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 5px}
+input[type=text],input[type=password],select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:inherit}
+input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--accent) 50%,transparent);border-color:var(--accent)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.check{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel2);cursor:pointer;user-select:none;font-weight:600}
+.check input{accent-color:var(--accent)}
+.primary{width:100%;margin-top:18px;padding:12px;border:0;border-radius:12px;color:#fff;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent)}
+.primary:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.ghost{width:100%;margin-top:8px;padding:10px;border-radius:12px;border:1px solid var(--line);background:none;color:var(--text);font-weight:600}
+.hint{font-size:12px;color:var(--muted);margin-top:10px}
+.alert{margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--failbg);color:var(--fail);font-weight:600;white-space:pre-wrap}
+.right{display:flex;flex-direction:column;gap:24px;min-width:0}
+.hero{display:flex;gap:28px;align-items:center;flex-wrap:wrap}
+.ring{position:relative;width:132px;height:132px;flex:none}
+.ring svg{transform:rotate(-90deg)}
+.ring .num{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font-weight:800;font-size:26px;line-height:1.1}
+.ring .num small{display:block;font-size:11px;color:var(--muted);font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;flex:1;min-width:260px}
+.stat{padding:14px;border-radius:14px;background:var(--panel2);border:1px solid var(--line)}
+.stat b{font-size:26px;display:block;line-height:1.1}.stat span{font-size:12px;color:var(--muted);font-weight:600}
+.stat.pass b{color:var(--pass)}.stat.fail b{color:var(--fail)}.stat.error b{color:var(--err)}.stat.man b{color:var(--man)}
+.bar{height:8px;background:var(--panel2);border-radius:99px;overflow:hidden;margin-top:16px}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s}
+.status-line{margin-top:10px;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.id{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--muted)}.id b{color:var(--text)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.toolbar input{max-width:260px}
+.chip{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:6px 12px;border-radius:999px;font-weight:600;font-size:12px}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.item{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden;background:var(--panel)}
+.item summary{list-style:none;cursor:pointer;display:flex;gap:12px;align-items:center;padding:11px 14px}
+.item summary::-webkit-details-marker{display:none}
+.item summary:hover{background:var(--panel2)}
+.cid{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:var(--muted);min-width:48px}
+.ttl{flex:1;min-width:0}.cat{font-size:11px;color:var(--muted)}
+.badge{font-size:11px;font-weight:800;padding:3px 10px;border-radius:99px;letter-spacing:.03em;white-space:nowrap}
+.b-PASS{background:var(--passbg);color:var(--pass)}.b-FAIL{background:var(--failbg);color:var(--fail)}
+.b-ERROR{background:var(--errbg);color:var(--err)}.b-MANUAL_VERIFICATION_REQUIRED{background:var(--manbg);color:var(--man)}
+.body{padding:4px 16px 16px;border-top:1px solid var(--line);background:var(--panel2)}
+.body p{color:var(--muted);margin:10px 0}
+.body ul{margin:6px 0;padding-left:18px}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;max-height:260px;font-size:12px;margin:8px 0 0}
+.reports{display:flex;gap:10px;flex-wrap:wrap}
+.reports a{padding:9px 16px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--text);text-decoration:none;font-weight:700}
+.reports a:hover{border-color:var(--accent)}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">CIS</div>
+  <h1>AWS CIS Benchmark Scanner<small>v__VERSION__ · Foundations Benchmark v1.5</small></h1>
+  <div class="spacer"></div>
+  <button class="icon-btn" id="theme" title="Toggle theme">◐ Theme</button>
+</header>
+
+<main>
+  <aside class="card" style="align-self:start">
+    <h2>Connection</h2>
+    <div class="tabs">
+      <button id="tab-keys" class="on">Access keys</button>
+      <button id="tab-profile">Profile / SSO</button>
+    </div>
+    <form id="form" autocomplete="off">
+      <div id="keys">
+        <label for="ak">Access Key ID</label>
+        <input id="ak" type="text" placeholder="AKIA… or ASIA…" spellcheck="false" autocomplete="off">
+        <label for="sk">Secret Access Key</label>
+        <input id="sk" type="password" placeholder="••••••••••••••••" autocomplete="new-password">
+        <label for="tk">Session token <span style="font-weight:400">(required for ASIA… keys)</span></label>
+        <input id="tk" type="password" autocomplete="new-password">
+      </div>
+      <div id="profile" class="hidden">
+        <label for="pf">Profile</label>
+        <select id="pf"><option value="">default / environment</option></select>
+        <p class="hint">For SSO run <code>aws sso login --profile NAME</code> first.</p>
+      </div>
+      <label for="rg">Region <span style="font-weight:400">(optional – defaults to us-east-1)</span></label>
+      <input id="rg" type="text" placeholder="us-east-1" spellcheck="false">
+
+      <label>Reports</label>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="f-json" checked> JSON</label>
+        <label class="check"><input type="checkbox" id="f-html" checked> HTML</label>
+        <label class="check"><input type="checkbox" id="f-pdf" checked> PDF</label>
+      </div>
+      <label for="od">Output folder</label>
+      <input id="od" type="text" value="reports">
+
+      <button class="primary" id="run" type="submit">Run scan</button>
+      <button class="ghost hidden" id="stop" type="button">Stop scan</button>
+      <div class="alert hidden" id="err"></div>
+      <p class="hint">🔒 Credentials stay in memory on this machine, are sent only to AWS, and are never written to disk or reports. Use a read-only identity (<code>SecurityAudit</code> + <code>ViewOnlyAccess</code>).</p>
+    </form>
+  </aside>
+
+  <section class="right">
+    <div class="card">
+      <h2>Overview</h2>
+      <div class="hero">
+        <div class="ring">
+          <svg width="132" height="132" viewBox="0 0 132 132">
+            <circle cx="66" cy="66" r="56" fill="none" stroke="var(--panel2)" stroke-width="14"/>
+            <circle id="arc" cx="66" cy="66" r="56" fill="none" stroke="var(--pass)" stroke-width="14" stroke-linecap="round" stroke-dasharray="351.86" stroke-dashoffset="351.86" style="transition:stroke-dashoffset .4s"/>
+          </svg>
+          <div class="num"><div><span id="score">–</span><small>compliance</small></div></div>
+        </div>
+        <div class="stats">
+          <div class="stat pass"><b id="n-PASS">0</b><span>Passed</span></div>
+          <div class="stat fail"><b id="n-FAIL">0</b><span>Failed</span></div>
+          <div class="stat error"><b id="n-ERROR">0</b><span>Errors</span></div>
+          <div class="stat man"><b id="n-MANUAL_VERIFICATION_REQUIRED">0</b><span>Manual</span></div>
+        </div>
+      </div>
+      <div class="bar"><i id="bar"></i></div>
+      <div class="status-line" id="status">Ready. Enter credentials and run a scan.</div>
+      <div class="id hidden" id="identity"></div>
+    </div>
+
+    <div class="card hidden" id="reports-card">
+      <h2>Reports</h2>
+      <div class="reports" id="reports"></div>
+    </div>
+
+    <div class="card">
+      <h2>Findings</h2>
+      <div class="toolbar">
+        <input type="text" id="q" placeholder="Search checks…">
+        <button class="chip on" data-f="ALL">All</button>
+        <button class="chip" data-f="FAIL">Failed</button>
+        <button class="chip" data-f="ERROR">Errors</button>
+        <button class="chip" data-f="PASS">Passed</button>
+        <button class="chip" data-f="MANUAL_VERIFICATION_REQUIRED">Manual</button>
+        <select id="cat" style="width:auto"><option value="">All categories</option></select>
+      </div>
+      <div id="list"><div class="empty">No results yet.</div></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const TOKEN="__TOKEN__";
+const $=s=>document.querySelector(s);
+const H={"X-Token":TOKEN,"Content-Type":"application/json"};
+let mode="keys",results=[],filter="ALL",timer=null,offset=0,busy=false;
+
+// theme
+const root=document.documentElement;
+try{const t=localStorage.getItem("theme");if(t)root.dataset.theme=t}catch(e){}
+$("#theme").onclick=()=>{const dark=getComputedStyle(root).getPropertyValue("--bg").trim()==="#0d0f1a";
+  root.dataset.theme=dark?"light":"dark";try{localStorage.setItem("theme",root.dataset.theme)}catch(e){}};
+
+// tabs
+function setMode(m){mode=m;$("#keys").classList.toggle("hidden",m!=="keys");$("#profile").classList.toggle("hidden",m!=="profile");
+  $("#tab-keys").classList.toggle("on",m==="keys");$("#tab-profile").classList.toggle("on",m==="profile")}
+$("#tab-keys").onclick=()=>setMode("keys");$("#tab-profile").onclick=()=>setMode("profile");
+
+fetch("/api/profiles",{headers:H}).then(r=>r.json()).then(d=>{
+  for(const p of d.profiles||[]){const o=document.createElement("option");o.value=o.textContent=p;$("#pf").append(o)}
+  if((d.profiles||[]).length&&false)setMode("profile")}).catch(()=>{});
+
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function showErr(m){const e=$("#err");e.textContent=m||"";e.classList.toggle("hidden",!m)}
+
+$("#form").onsubmit=async ev=>{
+  ev.preventDefault();showErr("");
+  const body={mode,region:$("#rg").value.trim(),out_dir:$("#od").value.trim()||"reports",
+    formats:["json","html","pdf"].filter(f=>$("#f-"+f).checked)};
+  if(mode==="keys"){body.access_key=$("#ak").value;body.secret_key=$("#sk").value;body.session_token=$("#tk").value}
+  else body.profile=$("#pf").value;
+  const r=await fetch("/api/scan",{method:"POST",headers:H,body:JSON.stringify(body)});
+  const d=await r.json();
+  if(!r.ok){showErr(d.error);return}
+  results=[];offset=0;render();$("#reports-card").classList.add("hidden");
+  setBusy(true);poll();
+};
+$("#stop").onclick=()=>{fetch("/api/stop",{method:"POST",headers:H,body:"{}"});$("#status").textContent="Stopping after current check…"};
+
+function setBusy(b){busy=b;$("#run").disabled=b;$("#run").textContent=b?"Scanning…":"Run scan";$("#stop").classList.toggle("hidden",!b)}
+
+async function poll(){
+  clearTimeout(timer);
+  let s;try{s=await (await fetch("/api/status?since="+offset,{headers:H})).json()}catch(e){timer=setTimeout(poll,1500);return}
+  results.push(...s.results);offset=results.length;
+  const pct=s.total?Math.round(s.progress/s.total*100):0;
+  $("#bar").style.width=(s.state==="authenticating"?5:pct)+"%";
+  if(s.identity&&s.identity.Account){$("#identity").classList.remove("hidden");
+    $("#identity").innerHTML=`<span>Account <b>${esc(s.identity.Account)}</b></span><span>Region <b>${esc(s.identity.Region)}</b></span><span>Identity <b>${esc(s.identity.Arn)}</b></span>`}
+  const sm=tally();setStats(sm);
+  if(s.state==="authenticating")$("#status").textContent="Authenticating with AWS…";
+  else if(s.state==="running")$("#status").textContent=`Running ${s.progress}/${s.total} · ${s.current}`;
+  render();
+  if(s.state==="authenticating"||s.state==="running"){timer=setTimeout(poll,600);return}
+  setBusy(false);
+  if(s.state==="error"){showErr(s.error);$("#status").textContent="Scan failed.";$("#bar").style.width="0"}
+  else{$("#status").textContent=(s.state==="stopped"?"Scan stopped. ":"Scan complete. ")+`${results.length} checks evaluated.`;
+    if(s.error)showErr(s.error);
+    const f=s.files||{};const keys=Object.keys(f);
+    if(keys.length){$("#reports-card").classList.remove("hidden");
+      $("#reports").innerHTML=keys.map(k=>`<a target="_blank" href="/api/report/${encodeURIComponent(f[k])}?t=${TOKEN}">${k.toUpperCase()} report</a>`).join("")}}
+}
+
+function tally(){const t={PASS:0,FAIL:0,ERROR:0,MANUAL_VERIFICATION_REQUIRED:0};for(const r of results)t[r.result]=(t[r.result]||0)+1;return t}
+function setStats(t){for(const k of Object.keys(t)){const e=document.getElementById("n-"+k);if(e)e.textContent=t[k]}
+  const auto=t.PASS+t.FAIL;const pct=auto?Math.round(t.PASS/auto*100):null;
+  $("#score").textContent=pct===null?"–":pct+"%";
+  const C=351.86;$("#arc").style.strokeDashoffset=C-(pct||0)/100*C;
+  $("#arc").style.stroke=pct===null?"var(--pass)":pct>=80?"var(--pass)":pct>=50?"var(--err)":"var(--fail)"}
+
+document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{filter=c.dataset.f;
+  document.querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===c));render()});
+$("#q").oninput=render;$("#cat").onchange=render;
+
+function render(){
+  const cats=[...new Set(results.map(r=>r.category))].sort(),cur=$("#cat").value;
+  if($("#cat").options.length!==cats.length+1){$("#cat").innerHTML='<option value="">All categories</option>'+cats.map(c=>`<option>${esc(c)}</option>`).join("");$("#cat").value=cur}
+  const q=$("#q").value.toLowerCase(),cat=$("#cat").value;
+  const open=new Set([...document.querySelectorAll("#list details[open]")].map(d=>d.dataset.id));
+  const rows=results.filter(r=>(filter==="ALL"||r.result===filter)&&(!cat||r.category===cat)&&
+    (!q||(r.check_id+" "+r.title+" "+r.category).toLowerCase().includes(q)));
+  if(!rows.length){$("#list").innerHTML=`<div class="empty">${results.length?"No checks match the filter.":"No results yet."}</div>`;return}
+  $("#list").innerHTML=rows.map(r=>{
+    const det=(r.details||[]).map(d=>`<li>${esc(d)}</li>`).join("");
+    const ev=r.evidence&&Object.keys(r.evidence).length?`<pre>${esc(JSON.stringify(r.evidence,null,2))}</pre>`:"";
+    const label=r.result==="MANUAL_VERIFICATION_REQUIRED"?"MANUAL":r.result;
+    return `<details class="item" data-id="${esc(r.check_id)}" ${open.has(r.check_id)?"open":""}>
+      <summary><span class="cid">${esc(r.check_id)}</span><span class="ttl">${esc(r.title)}<div class="cat">${esc(r.category)} · ${esc(r.check_type)}</div></span>
+      <span class="badge b-${esc(r.result)}">${label}</span></summary>
+      <div class="body"><p>${esc(r.description)}</p>${det?`<ul>${det}</ul>`:""}${ev}</div></details>`}).join("");
+}
+// resume view if a scan is already running (page refresh)
+fetch("/api/status",{headers:H}).then(r=>r.json()).then(s=>{if(s.state!=="idle"){setBusy(s.state==="running"||s.state==="authenticating");poll()}});
+</script>
+</body>
+</html>

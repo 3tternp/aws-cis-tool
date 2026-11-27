@@ -1,4 +1,4 @@
-# AWS CIS Benchmark Tool (v1.0.0)
+# AWS CIS Benchmark Tool (v1.1.0)
 
 A comprehensive, automated security compliance tool designed to audit your AWS environment against the **Center for Internet Security (CIS) AWS Foundations Benchmark v1.5**. This tool helps identify security misconfigurations in IAM, Storage (S3), Logging (CloudTrail), Monitoring (CloudWatch), and Networking (VPC/EC2).
 
@@ -6,7 +6,7 @@ A comprehensive, automated security compliance tool designed to audit your AWS e
 
 - **Dual Interface**:
   - **CLI (Command Line Interface)**: Perfect for automation pipelines and quick scans.
-  - **GUI (Graphical User Interface)**: User-friendly Tkinter app for interactive use.
+  - **GUI (Graphical User Interface)**: Modern local web dashboard (no extra dependencies) with live progress, compliance score, filterable findings and one-click report links.
 - **Flexible Authentication**:
   - **AWS SSO (Identity Center)**: Includes a built-in "Login via SSO" helper that handles Administrator permissions automatically.
   - **Standard Profiles**: Supports `~/.aws/credentials`.
@@ -42,8 +42,11 @@ A comprehensive, automated security compliance tool designed to audit your AWS e
 
 Launch the interactive GUI:
 ```bash
-python gui.py
+python gui.py            # opens http://127.0.0.1:8765 in your browser
 ```
+
+Credentials stay on your machine. Region is optional (defaults to `us-east-1`); `ASIA...` temporary keys need a session token.
+The CLI also accepts keys: `python main.py --access-key AKIA... --secret-key ... [--session-token ...]`.
 
 **GUI Capabilities:**
 - **One-Click SSO Login**: Click "Login via SSO" to open an Administrator terminal for secure authentication.
@@ -154,7 +157,7 @@ aws-cis-tool/
 ├── reports/                # Output directory
 ├── CHANGELOG.md            # Change history
 ├── Dockerfile              # Container image definition
-├── gui.py                  # Tkinter GUI entry point
+├── gui.py                  # Web dashboard launcher
 ├── main.py                 # CLI entry point
 ├── requirements.txt        # Dependencies
 └── README.md               # Documentation
